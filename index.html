@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>NFL ELO</title>
+  <style>
+    body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial; margin: 14px; }
+    button { padding: 8px 12px; font-size: 15px; margin-bottom: 12px; }
+    pre { background:#f7f7f8; padding:12px; border-radius:6px; white-space:pre-wrap; }
+    .meta { color:#666; font-size:13px; margin-bottom:8px; }
+  </style>
+</head>
+<body>
+  <h1>NFL ELO</h1>
+  <div class="meta">Data files: <code>data/starting_elo.json</code>, <code>data/schedule.csv</code>, <code>data/config.json</code></div>
+
+  <button id="runBtn">Run ELO Calculation</button>
+  <div id="status"></div>
+
+  <h2>Sorted Ratings</h2>
+  <pre id="output">Press "Run ELO Calculation"</pre>
+
+  <script src="elo.js"></script>
+</body>
+</html>

@@ -91,7 +91,7 @@ function populateDropdowns(schedule, ratings) {
 // ----------------- Main: run historical ELO -----------------
 async function runEloCalculation(debug = false) {
   const statusEl = document.getElementById("status");
-  const outEl = document.getElementById("output");
+  const outEl = document.getElementById("eloOutput");
   statusEl.textContent = "Loading input files...";
   outEl.textContent = "";
 
@@ -366,3 +366,4 @@ window.onload = () => {
   document.getElementById("predictWeekBtn").addEventListener("click", predictWeek);
   document.getElementById("predictTeamBtn").addEventListener("click", predictTeam);
 };
+

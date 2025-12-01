@@ -3,24 +3,71 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>NFL ELO</title>
+  <title>NFL ELO Predictor</title>
   <style>
-    body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial; margin: 14px; }
-    button { padding: 8px 12px; font-size: 15px; margin-bottom: 12px; }
-    pre { background:#f7f7f8; padding:12px; border-radius:6px; white-space:pre-wrap; }
-    .meta { color:#666; font-size:13px; margin-bottom:8px; }
+    body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial; padding: 12px; max-width: 900px; margin: auto; }
+    h1 { text-align:center; margin-bottom:8px; }
+    .section{ margin-bottom:18px; }
+    label, select, button { display:block; margin:6px 0; }
+    select, button { padding:8px; font-size:15px; }
+    pre { background:#f7f7f8; padding:10px; border-radius:6px; white-space:pre-wrap; overflow-x:auto; }
+    .row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+    @media (max-width:520px){ .row{ flex-direction:column; align-items:stretch } }
   </style>
 </head>
 <body>
-  <h1>NFL ELO</h1>
-  <div class="meta">Data files: <code>data/starting_elo.json</code>, <code>data/schedule.csv</code>, <code>data/config.json</code></div>
 
-  <button id="runBtn">Run ELO Calculation</button>
-  <div id="status"></div>
+<h1>NFL ELO — Ratings & Predictions</h1>
 
-  <h2>Sorted Ratings</h2>
-  <pre id="output">Press "Run ELO Calculation"</pre>
+<div class="section">
+  <h2>Compute ELO</h2>
+  <div class="row">
+    <button id="runBtn">Run ELO Calculation</button>
+    <span id="status" aria-live="polite"></span>
+  </div>
+  <h3>Sorted Ratings</h3>
+  <pre id="output">Click "Run ELO Calculation" to load data and compute ELOs.</pre>
+</div>
 
-  <script src="elo.js"></script>
+<div class="section">
+  <h2>Predictions</h2>
+
+  <label for="viewType">View Type</label>
+  <select id="viewType" aria-label="view type">
+    <option value="week">By Week</option>
+    <option value="team">By Team</option>
+  </select>
+
+  <div id="weekView" style="display:block; margin-top:8px;">
+    <label for="weekSelect">Select Week</label>
+    <div class="row">
+      <select id="weekSelect"></select>
+      <button id="predictWeekBtn">Show Week Predictions</button>
+    </div>
+  </div>
+
+  <div id="teamView" style="display:none; margin-top:8px;">
+    <label for="teamSelect">Select Team</label>
+    <div class="row">
+      <select id="teamSelect"></select>
+      <button id="predictTeamBtn">Show Team Future Games</button>
+    </div>
+  </div>
+
+  <h3>Predictions Output</h3>
+  <pre id="predictionOutput">Run ELO first, then select a week or team.</pre>
+</div>
+
+<!-- script -->
+<script src="elo.js"></script>
+<script>
+  // wire view toggle
+  document.getElementById("viewType").addEventListener("change", (e)=>{
+    const v = e.target.value;
+    document.getElementById("weekView").style.display = v === "week" ? "block" : "none";
+    document.getElementById("teamView").style.display = v === "team" ? "block" : "none";
+    document.getElementById("predictionOutput").textContent = "Run ELO first, then select a week or team.";
+  });
+</script>
 </body>
 </html>

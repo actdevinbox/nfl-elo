@@ -97,9 +97,12 @@ async function runEloCalculation(debug = false) {
 
   try {
     const [startingElo, config, schedule] = await Promise.all([
-      loadJSON("data/starting_elo.json"),
-      loadJSON("data/config.json"),
-      loadCSV("data/schedule.csv")
+    const BASE = location.pathname.split("/").slice(0,2).join("/");
+    
+    loadJSON(`${BASE}/data/config.json`)
+    loadJSON(`${BASE}/data/starting_elo.json`)
+    loadCSV(`${BASE}/data/schedule.csv`)
+
     ]);
 
     CONFIG = config;
@@ -366,4 +369,5 @@ window.onload = () => {
   document.getElementById("predictWeekBtn").addEventListener("click", predictWeek);
   document.getElementById("predictTeamBtn").addEventListener("click", predictTeam);
 };
+
 

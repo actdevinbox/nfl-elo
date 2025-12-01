@@ -96,13 +96,14 @@ async function runEloCalculation(debug = false) {
   outEl.textContent = "";
 
   try {
-    const [startingElo, config, schedule] = await Promise.all([
-    const BASE = location.pathname.split("/").slice(0,2).join("/");
-    
-    loadJSON(`${BASE}/data/config.json`)
-    loadJSON(`${BASE}/data/starting_elo.json`)
-    loadCSV(`${BASE}/data/schedule.csv`)
+    const BASE = location.pathname.split("/")[1] ? "/" + location.pathname.split("/")[1] : "";
 
+    console.log("BASE PATH:", BASE);
+    
+    const [config, startingElo, schedule] = await Promise.all([
+      loadJSON(`${BASE}/data/config.json`),
+      loadJSON(`${BASE}/data/starting_elo.json`),
+      loadCSV(`${BASE}/data/schedule.csv`)
     ]);
 
     CONFIG = config;
@@ -369,5 +370,6 @@ window.onload = () => {
   document.getElementById("predictWeekBtn").addEventListener("click", predictWeek);
   document.getElementById("predictTeamBtn").addEventListener("click", predictTeam);
 };
+
 
 

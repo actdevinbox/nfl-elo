@@ -96,10 +96,16 @@ async function runEloCalculation(debug = false) {
   outEl.textContent = "";
 
   try {    
-    const [config, startingElo, schedule] = await Promise.all([
-      loadJSON("data/config.json"),
-      loadJSON("data/starting_elo.json"),
-      loadCSV("data/schedule.csv")
+    statusEl.textContent = "Loading config.json...";
+    const config = await loadJSON("data/config.json");
+    
+    statusEl.textContent = "Loading starting_elo.json...";
+    const startingElo = await loadJSON("data/starting_elo.json");
+    
+    statusEl.textContent = "Loading schedule.csv...";
+    const schedule = await loadCSV("data/schedule.csv");
+    
+    statusEl.textContent = "All files loaded successfully!";
     ]);
 
     CONFIG = config;
@@ -366,6 +372,7 @@ window.onload = () => {
   document.getElementById("predictWeekBtn").addEventListener("click", predictWeek);
   document.getElementById("predictTeamBtn").addEventListener("click", predictTeam);
 };
+
 
 
 

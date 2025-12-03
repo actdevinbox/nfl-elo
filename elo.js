@@ -110,7 +110,7 @@ async function runEloCalculation(debug = false) {
   console.log("=== runEloCalculation STARTED ===");
   
   const statusEl = document.getElementById("status");
-  const outEl = document.getElementById("eloOutput");
+  const outEl = document.getElementById("Output");
   
   console.log("Status element:", statusEl);
   console.log("Output element:", outEl);
@@ -338,3 +338,4 @@ window.onload = () => {
   
   console.log("=== Event listeners set up complete ===");
 };
+

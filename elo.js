@@ -106,7 +106,7 @@ async function runEloCalculation(debug = false) {
     const schedule = await loadCSV("data/schedule.csv");
     
     statusEl.textContent = "All files loaded successfully!";
-    ]);
+  
 
     CONFIG = config;
     SCHEDULE = schedule;

@@ -122,8 +122,8 @@ async function runEloCalculation(debug = false) {
   }
   
   if (!outEl) {
-    console.error("ERROR: Could not find element with id 'eloOutput'");
-    alert("ERROR: Could not find eloOutput element. Check your HTML!");
+    console.error("ERROR: Could not find element with id 'output'");
+    alert("ERROR: Could not find output element. Check your HTML!");
     return;
   }
   
@@ -196,6 +196,7 @@ async function runEloCalculation(debug = false) {
     outEl.textContent = sortAndFormat(ratings);
 
     populateDropdowns(SCHEDULE, ratings);
+    generateRecordsTable(); // Generate the records table
     
     console.log("=== runEloCalculation COMPLETED SUCCESSFULLY ===");
 
@@ -212,6 +213,113 @@ async function runEloCalculation(debug = false) {
 // expose function to console if needed
 window.runEloCalculation = runEloCalculation;
 
+
+// ----------------- Team Records Table -----------------
+function generateRecordsTable() {
+  const tableContainer = document.getElementById("recordsTable");
+  if (!tableContainer) {
+    console.error("Could not find recordsTable element");
+    return;
+  }
+
+  if (!SCHEDULE.length || !Object.keys(FINAL_RATINGS).length) {
+    tableContainer.innerHTML = "<p>Run ELO calculation first to see team records.</p>";
+    return;
+  }
+
+  const HFA = Number(CONFIG.home_field_advantage ?? 25);
+  
+  // Initialize records for all teams
+  const records = {};
+  Object.keys(FINAL_RATINGS).forEach(team => {
+    records[team] = { 
+      wins: 0, 
+      losses: 0, 
+      projWins: 0, 
+      projLosses: 0,
+      elo: FINAL_RATINGS[team]
+    };
+  });
+
+  // Count actual wins/losses from completed games
+  const completedGames = SCHEDULE.filter(g => 
+    Number.isFinite(g.winnerScore) && Number.isFinite(g.loserScore)
+  );
+  
+  completedGames.forEach(g => {
+    if (records[g.winner]) records[g.winner].wins++;
+    if (records[g.loser]) records[g.loser].losses++;
+  });
+
+  // Calculate projected wins/losses from future games
+  const futureGames = SCHEDULE.filter(g =>
+    !Number.isFinite(g.winnerScore) && !Number.isFinite(g.loserScore)
+  );
+
+  futureGames.forEach(g => {
+    const homeTeam = g.winnerIsAway ? g.loser : g.winner;
+    const awayTeam = g.winnerIsAway ? g.winner : g.loser;
+    
+    if (!records[homeTeam] || !records[awayTeam]) return;
+    
+    const homeElo = FINAL_RATINGS[homeTeam] ?? Number(CONFIG.mean_elo ?? 1500);
+    const awayElo = FINAL_RATINGS[awayTeam] ?? Number(CONFIG.mean_elo ?? 1500);
+    
+    const pHomeWin = getWinProbability(homeElo, awayElo, HFA);
+    
+    // Add fractional wins/losses based on probability
+    records[homeTeam].projWins += pHomeWin;
+    records[homeTeam].projLosses += (1 - pHomeWin);
+    records[awayTeam].projWins += (1 - pHomeWin);
+    records[awayTeam].projLosses += pHomeWin;
+  });
+
+  // Convert to array and sort by total projected wins (current + projected)
+  const teamArray = Object.entries(records).map(([team, data]) => ({
+    team,
+    wins: data.wins,
+    losses: data.losses,
+    projWins: data.projWins,
+    projLosses: data.projLosses,
+    totalWins: data.wins + data.projWins,
+    elo: data.elo
+  })).sort((a, b) => b.totalWins - a.totalWins);
+
+  // Build HTML table
+  let html = `
+    <table style="width:100%; border-collapse:collapse; font-size:14px;">
+      <thead>
+        <tr style="background:#f0f0f0; border-bottom:2px solid #ddd;">
+          <th style="padding:8px; text-align:left;">Team</th>
+          <th style="padding:8px; text-align:center;">Current W-L</th>
+          <th style="padding:8px; text-align:center;">Proj W-L</th>
+          <th style="padding:8px; text-align:center;">Total W-L</th>
+          <th style="padding:8px; text-align:center;">ELO</th>
+        </tr>
+      </thead>
+      <tbody>
+  `;
+
+  teamArray.forEach((team, index) => {
+    const bgColor = index % 2 === 0 ? '#ffffff' : '#f9f9f9';
+    html += `
+      <tr style="background:${bgColor}; border-bottom:1px solid #eee;">
+        <td style="padding:8px;">${team.team}</td>
+        <td style="padding:8px; text-align:center;">${team.wins}-${team.losses}</td>
+        <td style="padding:8px; text-align:center;">${team.projWins.toFixed(1)}-${team.projLosses.toFixed(1)}</td>
+        <td style="padding:8px; text-align:center;"><strong>${team.totalWins.toFixed(1)}-${(team.losses + team.projLosses).toFixed(1)}</strong></td>
+        <td style="padding:8px; text-align:center;">${team.elo.toFixed(1)}</td>
+      </tr>
+    `;
+  });
+
+  html += `
+      </tbody>
+    </table>
+  `;
+
+  tableContainer.innerHTML = html;
+}
 
 // ----------------- Predictions (future only) -----------------
 function predictWeek() {
@@ -338,5 +446,3 @@ window.onload = () => {
   
   console.log("=== Event listeners set up complete ===");
 };
-
-

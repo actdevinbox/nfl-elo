@@ -9,13 +9,19 @@ let CONFIG = {};
 
 // ----------------- Loading helpers -----------------
 async function loadJSON(path) {
+  console.log(`Attempting to load JSON: ${path}`);
   const r = await fetch(path);
+  console.log(`Response status for ${path}: ${r.status}`);
   if (!r.ok) throw new Error(`Failed to load ${path}: ${r.status}`);
-  return r.json();
+  const data = await r.json();
+  console.log(`Successfully loaded ${path}`, data);
+  return data;
 }
 
 async function loadCSV(path) {
+  console.log(`Attempting to load CSV: ${path}`);
   const r = await fetch(path);
+  console.log(`Response status for ${path}: ${r.status}`);
   if (!r.ok) throw new Error(`Failed to load ${path}: ${r.status}`);
   const txt = await r.text();
 
@@ -30,7 +36,7 @@ async function loadCSV(path) {
     return Number.isFinite(n) ? n : null;
   }
 
-  return rows.map(line => {
+  const result = rows.map(line => {
     const parts = line.split(",").map(p => p.replace(/"/g,"").trim());
 
     return {
@@ -42,6 +48,9 @@ async function loadCSV(path) {
       loserScore: toNum(parts[5])
     };
   });
+  
+  console.log(`Successfully loaded ${path}, ${result.length} rows`);
+  return result;
 }
 
 
@@ -88,25 +97,54 @@ function populateDropdowns(schedule, ratings) {
   weeks.forEach(w => weekSelect.add(new Option("Week " + w, w)));
 }
 
+function sortAndFormat(ratingsObj) {
+  const arr = Object.entries(ratingsObj)
+    .map(([team, elo]) => ({ team, elo: Number(elo) }))
+    .sort((a,b) => b.elo - a.elo);
+
+  return arr.map(x => `${x.team}: ${x.elo.toFixed(2)}`).join("\n");
+}
+
 // ----------------- Main: run historical ELO -----------------
 async function runEloCalculation(debug = false) {
+  console.log("=== runEloCalculation STARTED ===");
+  
   const statusEl = document.getElementById("status");
   const outEl = document.getElementById("eloOutput");
-  statusEl.textContent = "Loading input files...";
+  
+  console.log("Status element:", statusEl);
+  console.log("Output element:", outEl);
+  
+  if (!statusEl) {
+    console.error("ERROR: Could not find element with id 'status'");
+    alert("ERROR: Could not find status element. Check your HTML!");
+    return;
+  }
+  
+  if (!outEl) {
+    console.error("ERROR: Could not find element with id 'eloOutput'");
+    alert("ERROR: Could not find eloOutput element. Check your HTML!");
+    return;
+  }
+  
+  statusEl.textContent = "Starting ELO calculation...";
   outEl.textContent = "";
 
   try {    
     statusEl.textContent = "Loading config.json...";
+    await new Promise(resolve => setTimeout(resolve, 100)); // Give UI time to update
     const config = await loadJSON("data/config.json");
     
     statusEl.textContent = "Loading starting_elo.json...";
+    await new Promise(resolve => setTimeout(resolve, 100));
     const startingElo = await loadJSON("data/starting_elo.json");
     
     statusEl.textContent = "Loading schedule.csv...";
+    await new Promise(resolve => setTimeout(resolve, 100));
     const schedule = await loadCSV("data/schedule.csv");
     
-    statusEl.textContent = "All files loaded successfully!";
-  
+    statusEl.textContent = "Processing games...";
+    await new Promise(resolve => setTimeout(resolve, 100));
 
     CONFIG = config;
     SCHEDULE = schedule;
@@ -121,8 +159,7 @@ async function runEloCalculation(debug = false) {
     const completedGames = schedule.filter(g => Number.isFinite(g.winnerScore) && Number.isFinite(g.loserScore));
     const weeksCompleted = completedGames.length ? Math.max(...completedGames.map(g => g.week)) : 0;
 
-    // prepare debug array if needed
-    const trace = []; // each element: object with detailed fields
+    console.log(`Found ${completedGames.length} completed games`);
 
     if (completedGames.length) {
       completedGames.sort((a,b)=>a.week - b.week);
@@ -141,7 +178,6 @@ async function runEloCalculation(debug = false) {
         const hfaAdj = g.winnerIsAway ? -HFA : +HFA;
         const E = expectedProb(winnerPrior, loserPrior, hfaAdj);
 
-        // historical MOV
         const mov = Math.max(1, g.winnerScore - g.loserScore);
         const wkWeight = Math.min(1, Math.exp(-lambda * (weeksCompleted - week)));
         const kPrime = computeKprime(K, mov, Math.abs(winnerPrior - loserPrior), wkWeight);
@@ -150,120 +186,27 @@ async function runEloCalculation(debug = false) {
         const winnerAfter = winnerPrior + delta;
         const loserAfter = loserPrior - delta;
 
-        // Apply updates
         ratings[winner] = winnerAfter;
         ratings[loser] = loserAfter;
-
-        // push trace row
-        trace.push({
-          week,
-          winner,
-          loser,
-          winnerScore: g.winnerScore,
-          loserScore: g.loserScore,
-          winnerPrior: Number(winnerPrior.toFixed(6)),
-          loserPrior: Number(loserPrior.toFixed(6)),
-          hfaAdj: Number(hfaAdj.toFixed(6)),
-          E: Number(E.toFixed(8)),
-          mov,
-          wkWeight: Number(wkWeight.toFixed(8)),
-          kPrime: Number(kPrime.toFixed(8)),
-          delta: Number(delta.toFixed(8)),
-          winnerAfter: Number(winnerAfter.toFixed(6)),
-          loserAfter: Number(loserAfter.toFixed(6))
-        });
       }
     }
 
     FINAL_RATINGS = ratings;
-    statusEl.textContent = `Processed ${completedGames.length} completed games (weeksCompleted=${weeksCompleted}).`;
+    statusEl.textContent = `✓ Processed ${completedGames.length} completed games (weeks 1-${weeksCompleted})`;
     outEl.textContent = sortAndFormat(ratings);
 
     populateDropdowns(SCHEDULE, ratings);
-
-    // If debug requested, present trace
-    if (false && debug) {
-      console.log("ELO per-game trace:", trace);
-      // show first 100 rows in console table (or all if small)
-      console.table(trace.slice(0, 500));
-
-      // also create CSV for download and small HTML table below output
-      const csvHeader = [
-        "week","winner","loser","winnerScore","loserScore",
-        "winnerPrior","loserPrior","hfaAdj","E","mov","wkWeight","kPrime","delta","winnerAfter","loserAfter"
-      ].join(",");
-
-      const csvRows = trace.map(r => csvHeader.split(",").map(h => {
-        const v = r[h];
-        // escape commas and quotes
-        if (v === null || v === undefined) return "";
-        return String(v).includes(",") ? `"${String(v).replace(/"/g,'""')}"` : String(v);
-      }).join(","));
-
-      const csvContent = [csvHeader].concat(csvRows).join("\n");
-      // create a blob and link
-      const blob = new Blob([csvContent], {type: "text/csv;charset=utf-8;"});
-      const url = URL.createObjectURL(blob);
-
-      // show link in statusEl
-      const linkId = "eloTraceDownload";
-      let link = document.getElementById(linkId);
-      if (!link) {
-        link = document.createElement("a");
-        link.id = linkId;
-        link.textContent = "Download ELO trace CSV";
-        link.style.display = "inline-block";
-        link.style.marginLeft = "12px";
-        statusEl.appendChild(link);
-      }
-      link.href = url;
-      link.download = `elo_trace_week${weeksCompleted || 0}.csv`;
-
-      // also inject a short HTML table under the output for quick glance
-      const debugElId = "debugTraceTable";
-      let debugEl = document.getElementById(debugElId);
-      if (!debugEl) {
-        debugEl = document.createElement("div");
-        debugEl.id = debugElId;
-        debugEl.style.marginTop = "12px";
-        document.getElementById("output").insertAdjacentElement("afterend", debugEl);
-      }
-      // build small table(html) for first up to 50 rows
-      const rowsToShow = trace.slice(0, 50);
-      let html = `<div style="max-height:300px; overflow:auto; border:1px solid #ddd; padding:6px;"><table style="width:100%; border-collapse:collapse; font-size:12px;">`;
-      html += `<thead><tr style="background:#f0f0f0"><th>wk</th><th>winner</th><th>loser</th><th>wPrior</th><th>lPrior</th><th>E</th><th>MOV</th><th>K'</th><th>Δ</th><th>wAfter</th><th>lAfter</th></tr></thead><tbody>`;
-      for (const r of rowsToShow) {
-        html += `<tr>
-          <td>${r.week}</td>
-          <td>${r.winner}</td>
-          <td>${r.loser}</td>
-          <td style="text-align:right">${r.winnerPrior}</td>
-          <td style="text-align:right">${r.loserPrior}</td>
-          <td style="text-align:right">${r.E}</td>
-          <td style="text-align:right">${r.mov}</td>
-          <td style="text-align:right">${r.kPrime}</td>
-          <td style="text-align:right">${r.delta}</td>
-          <td style="text-align:right">${r.winnerAfter}</td>
-          <td style="text-align:right">${r.loserAfter}</td>
-        </tr>`;
-      }
-      html += `</tbody></table></div>`;
-      debugEl.innerHTML = html;
-    }
+    
+    console.log("=== runEloCalculation COMPLETED SUCCESSFULLY ===");
 
   } catch (err) {
-    statusEl.textContent = "Error: " + err.message;
+    const errorMsg = `Error: ${err.message}`;
+    console.error("=== ERROR IN runEloCalculation ===");
     console.error(err);
-    document.getElementById("output").textContent = "Error -- see console.";
+    statusEl.textContent = errorMsg;
+    outEl.textContent = `Failed to load data. Check console for details.\n\nError: ${err.message}`;
+    alert(`Error loading data: ${err.message}\n\nCheck the browser console (F12) for more details.`);
   }
-
-  function sortAndFormat(ratingsObj) {
-  const arr = Object.entries(ratingsObj)
-    .map(([team, elo]) => ({ team, elo: Number(elo) }))
-    .sort((a,b) => b.elo - a.elo);
-
-  return arr.map(x => `${x.team}: ${x.elo.toFixed(2)}`).join("\n");
-}
 }
 
 // expose function to console if needed
@@ -278,7 +221,6 @@ function predictWeek() {
     return;
   }
 
-  // future games: scores are NOT finite numbers (null or non-numeric)
   const futureGames = SCHEDULE.filter(g =>
     Number(g.week) === week &&
     !Number.isFinite(g.winnerScore) &&
@@ -303,7 +245,6 @@ function predictWeek() {
     const projectedWinner = pHomeWin > 0.5 ? homeTeam : awayTeam;
     const pWinner = projectedWinner === homeTeam ? pHomeWin : 1 - pHomeWin;
 
-    // safeguard pWinner in (eps, 1-eps)
     const eps = 1e-12;
     const pClamped = Math.min(1 - eps, Math.max(eps, pWinner));
     const margin = Math.log(pClamped / (1 - pClamped)) / k;
@@ -368,12 +309,32 @@ function predictTeam() {
 
 // ----------------- Wiring -----------------
 window.onload = () => {
-  document.getElementById("runBtn").addEventListener("click", runEloCalculation);
-  document.getElementById("predictWeekBtn").addEventListener("click", predictWeek);
-  document.getElementById("predictTeamBtn").addEventListener("click", predictTeam);
+  console.log("=== Page loaded, setting up event listeners ===");
+  
+  const runBtn = document.getElementById("runBtn");
+  const predictWeekBtn = document.getElementById("predictWeekBtn");
+  const predictTeamBtn = document.getElementById("predictTeamBtn");
+  
+  console.log("runBtn:", runBtn);
+  console.log("predictWeekBtn:", predictWeekBtn);
+  console.log("predictTeamBtn:", predictTeamBtn);
+  
+  if (!runBtn) {
+    console.error("ERROR: Could not find button with id 'runBtn'");
+  } else {
+    runBtn.addEventListener("click", () => {
+      console.log("Run button clicked!");
+      runEloCalculation();
+    });
+  }
+  
+  if (predictWeekBtn) {
+    predictWeekBtn.addEventListener("click", predictWeek);
+  }
+  
+  if (predictTeamBtn) {
+    predictTeamBtn.addEventListener("click", predictTeam);
+  }
+  
+  console.log("=== Event listeners set up complete ===");
 };
-
-
-
-
-

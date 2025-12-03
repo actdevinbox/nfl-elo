@@ -1,226 +1,94 @@
 // elo.js
-// Loads data/starting_elo.json, data/config.json, data/schedule.csv
-// Runs historical ELO and provides future predictions (week & team).
-//
+// NFL ELO Rating System
+// Loads data files, computes historical ELO ratings, and generates predictions
 
 let FINAL_RATINGS = {};
 let SCHEDULE = [];
 let CONFIG = {};
 
-// ----------------- Loading helpers -----------------
+// ==================== DATA LOADING ====================
+
 async function loadJSON(path) {
-  console.log(`Attempting to load JSON: ${path}`);
-  const r = await fetch(path);
-  console.log(`Response status for ${path}: ${r.status}`);
-  if (!r.ok) throw new Error(`Failed to load ${path}: ${r.status}`);
-  const data = await r.json();
-  console.log(`Successfully loaded ${path}`, data);
-  return data;
+  const response = await fetch(path);
+  if (!response.ok) throw new Error(`Failed to load ${path}: ${response.status}`);
+  return response.json();
 }
 
 async function loadCSV(path) {
-  console.log(`Attempting to load CSV: ${path}`);
-  const r = await fetch(path);
-  console.log(`Response status for ${path}: ${r.status}`);
-  if (!r.ok) throw new Error(`Failed to load ${path}: ${r.status}`);
-  const txt = await r.text();
+  const response = await fetch(path);
+  if (!response.ok) throw new Error(`Failed to load ${path}: ${response.status}`);
+  const text = await response.text();
 
-  const clean = txt.replace(/\uFEFF/g, '').trim();
+  const clean = text.replace(/\uFEFF/g, '').trim();
   const lines = clean.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
-  const rows = lines.slice(1); // skip header
+  const rows = lines.slice(1); // Skip header
 
-  function toNum(v) {
-    if (!v) return null;
-    const cleaned = v.replace(/[^\d.-]/g, '').trim();
-    const n = Number(cleaned);
-    return Number.isFinite(n) ? n : null;
-  }
-
-  const result = rows.map(line => {
-    const parts = line.split(",").map(p => p.replace(/"/g,"").trim());
-
+  return rows.map(line => {
+    const parts = line.split(",").map(p => p.replace(/"/g, "").trim());
     return {
       week: Number(parts[0]),
       winner: parts[1],
-      winnerScore: toNum(parts[2]),
+      winnerScore: parseScore(parts[2]),
       winnerIsAway: parts[3] === "@",
       loser: parts[4],
-      loserScore: toNum(parts[5])
+      loserScore: parseScore(parts[5])
     };
   });
-  
-  console.log(`Successfully loaded ${path}, ${result.length} rows`);
-  return result;
 }
 
+function parseScore(value) {
+  if (!value) return null;
+  const cleaned = value.replace(/[^\d.-]/g, '').trim();
+  const num = Number(cleaned);
+  return Number.isFinite(num) ? num : null;
+}
 
-// ----------------- ELO helper functions -----------------
-function expectedProb(winnerElo, loserElo, hfaAdj) {
-  const diff = winnerElo + hfaAdj - loserElo;
+// ==================== ELO CALCULATIONS ====================
+
+function expectedWinProbability(winnerElo, loserElo, homeFieldAdj) {
+  const diff = winnerElo + homeFieldAdj - loserElo;
   return 1 / (1 + Math.pow(10, -diff / 400));
 }
 
-function computeKprime(K, mov, eloDiffAbs, wkWeight) {
-  const factor = 2.2 / ((eloDiffAbs * 0.001) + 2.2);
-  return K + mov * factor * wkWeight; // changed to plus
+function computeKFactor(baseK, marginOfVictory, eloDiff, weekWeight) {
+  const movMultiplier = 2.2 / ((eloDiff * 0.001) + 2.2);
+  return baseK + marginOfVictory * movMultiplier * weekWeight;
 }
 
-function formatRatings(ratingsObj) {
-  return Object.entries(ratingsObj)
-    .map(([team, elo]) => ({ team, elo: Number(elo) }))
-    .sort((a,b)=>b.elo - a.elo)
-    .map(x => `${x.team.padEnd(20)} ${x.elo.toFixed(1)}`)
-    .join("\n");
+function getWinProbability(homeElo, awayElo, homeFieldAdv) {
+  return 1 / (1 + Math.pow(10, -(homeElo + homeFieldAdv - awayElo) / 400));
 }
 
-function getWinProbability(homeElo, awayElo, HFA) {
-  // homeElo and awayElo are raw ELOs (no HFA included)
-  return 1 / (1 + Math.pow(10, -(homeElo + HFA - awayElo) / 400));
-}
+// ==================== UI HELPERS ====================
 
-// ----------------- UI population -----------------
 function populateDropdowns(schedule, ratings) {
   const teamSelect = document.getElementById("teamSelect");
   const weekSelect = document.getElementById("weekSelect");
+  
   teamSelect.innerHTML = "";
   weekSelect.innerHTML = "";
 
-  // Teams: union of starting ELO keys + all teams in schedule
+  // Get all unique teams
   const teamsSet = new Set(Object.keys(ratings));
-  schedule.forEach(g => { if (g.winner) teamsSet.add(g.winner); if (g.loser) teamsSet.add(g.loser); });
+  schedule.forEach(game => {
+    if (game.winner) teamsSet.add(game.winner);
+    if (game.loser) teamsSet.add(game.loser);
+  });
   const teams = Array.from(teamsSet).sort();
+  teams.forEach(team => teamSelect.add(new Option(team, team)));
 
-  teams.forEach(t => teamSelect.add(new Option(t, t)));
-
-  // Weeks from schedule (unique, sorted)
-  const weeks = Array.from(new Set(schedule.map(g => Number(g.week)).filter(w=>!Number.isNaN(w)))).sort((a,b)=>a-b);
-  weeks.forEach(w => weekSelect.add(new Option("Week " + w, w)));
+  // Get all unique weeks
+  const weeks = Array.from(
+    new Set(schedule.map(g => Number(g.week)).filter(w => !Number.isNaN(w)))
+  ).sort((a, b) => a - b);
+  weeks.forEach(week => weekSelect.add(new Option(`Week ${week}`, week)));
 }
 
-function sortAndFormat(ratingsObj) {
-  const arr = Object.entries(ratingsObj)
-    .map(([team, elo]) => ({ team, elo: Number(elo) }))
-    .sort((a,b) => b.elo - a.elo);
+// ==================== TEAM RECORDS TABLE ====================
 
-  return arr.map(x => `${x.team}: ${x.elo.toFixed(2)}`).join("\n");
-}
-
-// ----------------- Main: run historical ELO -----------------
-async function runEloCalculation(debug = false) {
-  console.log("=== runEloCalculation STARTED ===");
-  
-  const statusEl = document.getElementById("status");
-  const outEl = document.getElementById("output");
-  
-  console.log("Status element:", statusEl);
-  console.log("Output element:", outEl);
-  
-  if (!statusEl) {
-    console.error("ERROR: Could not find element with id 'status'");
-    alert("ERROR: Could not find status element. Check your HTML!");
-    return;
-  }
-  
-  if (!outEl) {
-    console.error("ERROR: Could not find element with id 'output'");
-    alert("ERROR: Could not find output element. Check your HTML!");
-    return;
-  }
-  
-  statusEl.textContent = "Starting ELO calculation...";
-  outEl.textContent = "";
-
-  try {    
-    statusEl.textContent = "Loading config.json...";
-    await new Promise(resolve => setTimeout(resolve, 100)); // Give UI time to update
-    const config = await loadJSON("data/config.json");
-    
-    statusEl.textContent = "Loading starting_elo.json...";
-    await new Promise(resolve => setTimeout(resolve, 100));
-    const startingElo = await loadJSON("data/starting_elo.json");
-    
-    statusEl.textContent = "Loading schedule.csv...";
-    await new Promise(resolve => setTimeout(resolve, 100));
-    const schedule = await loadCSV("data/schedule.csv");
-    
-    statusEl.textContent = "Processing games...";
-    await new Promise(resolve => setTimeout(resolve, 100));
-
-    CONFIG = config;
-    SCHEDULE = schedule;
-
-    const K = Number(config.K ?? 50);
-    const HFA = Number(config.home_field_advantage ?? 25);
-    const halfLife = Number(config.half_life_weeks ?? 12);
-    const lambda = Math.log(2) / halfLife;
-    const meanElo = Number(config.mean_elo ?? 1500);
-
-    const ratings = Object.assign({}, startingElo || {});
-    const completedGames = schedule.filter(g => Number.isFinite(g.winnerScore) && Number.isFinite(g.loserScore));
-    const weeksCompleted = completedGames.length ? Math.max(...completedGames.map(g => g.week)) : 0;
-
-    console.log(`Found ${completedGames.length} completed games`);
-
-    if (completedGames.length) {
-      completedGames.sort((a,b)=>a.week - b.week);
-      for (const g of completedGames) {
-        const week = g.week;
-        const winner = g.winner;
-        const loser = g.loser;
-        if (!winner || !loser) continue;
-
-        if (ratings[winner] === undefined) ratings[winner] = meanElo;
-        if (ratings[loser] === undefined) ratings[loser] = meanElo;
-
-        const winnerPrior = Number(ratings[winner]);
-        const loserPrior = Number(ratings[loser]);
-
-        const hfaAdj = g.winnerIsAway ? -HFA : +HFA;
-        const E = expectedProb(winnerPrior, loserPrior, hfaAdj);
-
-        const mov = Math.max(1, g.winnerScore - g.loserScore);
-        const wkWeight = Math.min(1, Math.exp(-lambda * (weeksCompleted - week)));
-        const kPrime = computeKprime(K, mov, Math.abs(winnerPrior - loserPrior), wkWeight);
-        const delta = kPrime * (1 - E);
-
-        const winnerAfter = winnerPrior + delta;
-        const loserAfter = loserPrior - delta;
-
-        ratings[winner] = winnerAfter;
-        ratings[loser] = loserAfter;
-      }
-    }
-
-    FINAL_RATINGS = ratings;
-    statusEl.textContent = `✓ Processed ${completedGames.length} completed games (weeks 1-${weeksCompleted})`;
-    outEl.textContent = sortAndFormat(ratings);
-
-    populateDropdowns(SCHEDULE, ratings);
-    generateRecordsTable(); // Generate the records table
-    
-    console.log("=== runEloCalculation COMPLETED SUCCESSFULLY ===");
-
-  } catch (err) {
-    const errorMsg = `Error: ${err.message}`;
-    console.error("=== ERROR IN runEloCalculation ===");
-    console.error(err);
-    statusEl.textContent = errorMsg;
-    outEl.textContent = `Failed to load data. Check console for details.\n\nError: ${err.message}`;
-    alert(`Error loading data: ${err.message}\n\nCheck the browser console (F12) for more details.`);
-  }
-}
-
-// expose function to console if needed
-window.runEloCalculation = runEloCalculation;
-
-
-// ----------------- Team Records Table -----------------
 function generateRecordsTable() {
   const tableContainer = document.getElementById("recordsTable");
-  if (!tableContainer) {
-    console.error("Could not find recordsTable element");
-    return;
-  }
+  if (!tableContainer) return;
 
   if (!SCHEDULE.length || !Object.keys(FINAL_RATINGS).length) {
     tableContainer.innerHTML = "<p>Run ELO calculation first to see team records.</p>";
@@ -246,9 +114,9 @@ function generateRecordsTable() {
     Number.isFinite(g.winnerScore) && Number.isFinite(g.loserScore)
   );
   
-  completedGames.forEach(g => {
-    if (records[g.winner]) records[g.winner].wins++;
-    if (records[g.loser]) records[g.loser].losses++;
+  completedGames.forEach(game => {
+    if (records[game.winner]) records[game.winner].wins++;
+    if (records[game.loser]) records[game.loser].losses++;
   });
 
   // Calculate projected wins/losses from future games
@@ -256,9 +124,9 @@ function generateRecordsTable() {
     !Number.isFinite(g.winnerScore) && !Number.isFinite(g.loserScore)
   );
 
-  futureGames.forEach(g => {
-    const homeTeam = g.winnerIsAway ? g.loser : g.winner;
-    const awayTeam = g.winnerIsAway ? g.winner : g.loser;
+  futureGames.forEach(game => {
+    const homeTeam = game.winnerIsAway ? game.loser : game.winner;
+    const awayTeam = game.winnerIsAway ? game.winner : game.loser;
     
     if (!records[homeTeam] || !records[awayTeam]) return;
     
@@ -267,14 +135,13 @@ function generateRecordsTable() {
     
     const pHomeWin = getWinProbability(homeElo, awayElo, HFA);
     
-    // Add fractional wins/losses based on probability
     records[homeTeam].projWins += pHomeWin;
     records[homeTeam].projLosses += (1 - pHomeWin);
     records[awayTeam].projWins += (1 - pHomeWin);
     records[awayTeam].projLosses += pHomeWin;
   });
 
-  // Convert to array and sort by total projected wins (current + projected)
+  // Sort by total projected wins
   const teamArray = Object.entries(records).map(([team, data]) => ({
     team,
     wins: data.wins,
@@ -302,30 +169,118 @@ function generateRecordsTable() {
 
   teamArray.forEach((team, index) => {
     const bgColor = index % 2 === 0 ? '#ffffff' : '#f9f9f9';
+    const totalLosses = team.losses + team.projLosses;
     html += `
       <tr style="background:${bgColor}; border-bottom:1px solid #eee;">
         <td style="padding:8px;">${team.team}</td>
         <td style="padding:8px; text-align:center;">${team.wins}-${team.losses}</td>
         <td style="padding:8px; text-align:center;">${team.projWins.toFixed(1)}-${team.projLosses.toFixed(1)}</td>
-        <td style="padding:8px; text-align:center;"><strong>${team.totalWins.toFixed(1)}-${(team.losses + team.projLosses).toFixed(1)}</strong></td>
+        <td style="padding:8px; text-align:center;"><strong>${team.totalWins.toFixed(1)}-${totalLosses.toFixed(1)}</strong></td>
         <td style="padding:8px; text-align:center;">${team.elo.toFixed(1)}</td>
       </tr>
     `;
   });
 
-  html += `
-      </tbody>
-    </table>
-  `;
-
+  html += '</tbody></table>';
   tableContainer.innerHTML = html;
 }
 
-// ----------------- Predictions (future only) -----------------
+// ==================== MAIN ELO CALCULATION ====================
+
+async function runEloCalculation() {
+  const statusEl = document.getElementById("status");
+  
+  if (!statusEl) {
+    alert("ERROR: Status element not found in HTML!");
+    return;
+  }
+  
+  statusEl.textContent = "Loading data files...";
+
+  try {
+    // Load all data files
+    const [config, startingElo, schedule] = await Promise.all([
+      loadJSON("data/config.json"),
+      loadJSON("data/starting_elo.json"),
+      loadCSV("data/schedule.csv")
+    ]);
+
+    CONFIG = config;
+    SCHEDULE = schedule;
+
+    // Extract configuration values
+    const K = Number(config.K ?? 50);
+    const HFA = Number(config.home_field_advantage ?? 25);
+    const halfLife = Number(config.half_life_weeks ?? 12);
+    const lambda = Math.log(2) / halfLife;
+    const meanElo = Number(config.mean_elo ?? 1500);
+
+    // Initialize ratings
+    const ratings = { ...startingElo };
+    
+    // Filter completed games
+    const completedGames = schedule.filter(g => 
+      Number.isFinite(g.winnerScore) && Number.isFinite(g.loserScore)
+    );
+    
+    const weeksCompleted = completedGames.length 
+      ? Math.max(...completedGames.map(g => g.week)) 
+      : 0;
+
+    statusEl.textContent = "Calculating ELO ratings...";
+
+    // Process each completed game
+    if (completedGames.length) {
+      completedGames.sort((a, b) => a.week - b.week);
+      
+      for (const game of completedGames) {
+        const { week, winner, loser, winnerScore, loserScore, winnerIsAway } = game;
+        if (!winner || !loser) continue;
+
+        // Initialize missing teams
+        if (ratings[winner] === undefined) ratings[winner] = meanElo;
+        if (ratings[loser] === undefined) ratings[loser] = meanElo;
+
+        const winnerElo = Number(ratings[winner]);
+        const loserElo = Number(ratings[loser]);
+
+        // Calculate expected probability
+        const hfaAdj = winnerIsAway ? -HFA : HFA;
+        const expectedProb = expectedWinProbability(winnerElo, loserElo, hfaAdj);
+
+        // Calculate rating changes
+        const mov = Math.max(1, winnerScore - loserScore);
+        const weekWeight = Math.min(1, Math.exp(-lambda * (weeksCompleted - week)));
+        const kPrime = computeKFactor(K, mov, Math.abs(winnerElo - loserElo), weekWeight);
+        const delta = kPrime * (1 - expectedProb);
+
+        // Update ratings
+        ratings[winner] = winnerElo + delta;
+        ratings[loser] = loserElo - delta;
+      }
+    }
+
+    FINAL_RATINGS = ratings;
+    statusEl.textContent = `✓ Processed ${completedGames.length} games through week ${weeksCompleted}`;
+
+    populateDropdowns(SCHEDULE, ratings);
+    generateRecordsTable();
+
+  } catch (err) {
+    statusEl.textContent = `Error: ${err.message}`;
+    console.error("ELO Calculation Error:", err);
+    alert(`Failed to load data: ${err.message}\n\nCheck browser console for details.`);
+  }
+}
+
+// ==================== PREDICTIONS ====================
+
 function predictWeek() {
   const week = Number(document.getElementById("weekSelect").value);
+  const output = document.getElementById("predictionOutput");
+  
   if (!Number.isFinite(week)) {
-    document.getElementById("predictionOutput").textContent = "Please select a week.";
+    output.textContent = "Please select a week.";
     return;
   }
 
@@ -336,43 +291,46 @@ function predictWeek() {
   );
 
   if (!futureGames.length) {
-    document.getElementById("predictionOutput").textContent = `No future games found for week ${week}.`;
+    output.textContent = `No future games found for week ${week}.`;
     return;
   }
 
   const HFA = Number(CONFIG.home_field_advantage ?? 25);
-  const k = 0.147;
+  const marginFactor = 0.147;
 
-  const predictions = futureGames.map(g => {
-    const homeTeam = g.winnerIsAway ? g.loser : g.winner;
-    const awayTeam = g.winnerIsAway ? g.winner : g.loser;
+  const predictions = futureGames.map(game => {
+    const homeTeam = game.winnerIsAway ? game.loser : game.winner;
+    const awayTeam = game.winnerIsAway ? game.winner : game.loser;
     const homeElo = FINAL_RATINGS[homeTeam] ?? Number(CONFIG.mean_elo ?? 1500);
     const awayElo = FINAL_RATINGS[awayTeam] ?? Number(CONFIG.mean_elo ?? 1500);
 
     const pHomeWin = getWinProbability(homeElo, awayElo, HFA);
     const projectedWinner = pHomeWin > 0.5 ? homeTeam : awayTeam;
-    const pWinner = projectedWinner === homeTeam ? pHomeWin : 1 - pHomeWin;
+    const winProb = projectedWinner === homeTeam ? pHomeWin : 1 - pHomeWin;
 
-    const eps = 1e-12;
-    const pClamped = Math.min(1 - eps, Math.max(eps, pWinner));
-    const margin = Math.log(pClamped / (1 - pClamped)) / k;
+    const pClamped = Math.min(0.999999999999, Math.max(0.000000000001, winProb));
+    const margin = Math.log(pClamped / (1 - pClamped)) / marginFactor;
 
-    return { homeTeam, awayTeam, projectedWinner, winProb: pWinner, margin };
+    return { homeTeam, awayTeam, projectedWinner, winProb, margin };
   });
 
-  predictions.sort((a,b)=>b.winProb - a.winProb);
+  predictions.sort((a, b) => b.winProb - a.winProb);
 
-  let out = `Predictions (Week ${week}) — future games only:\n`;
-  for (const p of predictions) {
-    out += `${p.homeTeam} (Home) vs ${p.awayTeam} → ${p.projectedWinner} wins, Prob: ${(p.winProb*100).toFixed(1)}%, Margin: ${p.margin.toFixed(1)} pts\n`;
-  }
-  document.getElementById("predictionOutput").textContent = out;
+  let result = `Predictions (Week ${week}) — future games only:\n\n`;
+  predictions.forEach(p => {
+    result += `${p.homeTeam} (Home) vs ${p.awayTeam}\n`;
+    result += `  → ${p.projectedWinner} wins | Prob: ${(p.winProb * 100).toFixed(1)}% | Margin: ${p.margin.toFixed(1)} pts\n\n`;
+  });
+  
+  output.textContent = result;
 }
 
 function predictTeam() {
   const team = document.getElementById("teamSelect").value;
+  const output = document.getElementById("predictionOutput");
+  
   if (!team) {
-    document.getElementById("predictionOutput").textContent = "Please select a team.";
+    output.textContent = "Please select a team.";
     return;
   }
 
@@ -383,66 +341,51 @@ function predictTeam() {
   );
 
   if (!futureGames.length) {
-    document.getElementById("predictionOutput").textContent = `No future games found for ${team}.`;
+    output.textContent = `No future games found for ${team}.`;
     return;
   }
 
   const HFA = Number(CONFIG.home_field_advantage ?? 25);
-  const k = 0.147;
+  const marginFactor = 0.147;
 
-  const predictions = futureGames.map(g => {
-    const homeTeam = g.winnerIsAway ? g.loser : g.winner;
-    const awayTeam = g.winnerIsAway ? g.winner : g.loser;
+  const predictions = futureGames.map(game => {
+    const homeTeam = game.winnerIsAway ? game.loser : game.winner;
+    const awayTeam = game.winnerIsAway ? game.winner : game.loser;
     const homeElo = FINAL_RATINGS[homeTeam] ?? Number(CONFIG.mean_elo ?? 1500);
     const awayElo = FINAL_RATINGS[awayTeam] ?? Number(CONFIG.mean_elo ?? 1500);
 
     const pHomeWin = getWinProbability(homeElo, awayElo, HFA);
     const projectedWinner = pHomeWin > 0.5 ? homeTeam : awayTeam;
-    const pWinner = projectedWinner === homeTeam ? pHomeWin : 1 - pHomeWin;
-    const eps = 1e-12;
-    const pClamped = Math.min(1 - eps, Math.max(eps, pWinner));
-    const margin = Math.log(pClamped / (1 - pClamped)) / k;
+    const winProb = projectedWinner === homeTeam ? pHomeWin : 1 - pHomeWin;
+    
+    const pClamped = Math.min(0.999999999999, Math.max(0.000000000001, winProb));
+    const margin = Math.log(pClamped / (1 - pClamped)) / marginFactor;
 
-    return { homeTeam, awayTeam, projectedWinner, winProb: pWinner, margin };
+    return { homeTeam, awayTeam, projectedWinner, winProb, margin, week: game.week };
   });
 
-  predictions.sort((a,b)=>b.winProb - a.winProb);
+  predictions.sort((a, b) => a.week - b.week);
 
-  let out = `Future games for ${team}:\n`;
-  for (const p of predictions) {
-    out += `${p.homeTeam} (Home) vs ${p.awayTeam} → ${p.projectedWinner} wins, Prob: ${(p.winProb*100).toFixed(1)}%, Margin: ${p.margin.toFixed(1)} pts\n`;
-  }
-  document.getElementById("predictionOutput").textContent = out;
+  let result = `Future games for ${team}:\n\n`;
+  predictions.forEach(p => {
+    result += `Week ${p.week}: ${p.homeTeam} (Home) vs ${p.awayTeam}\n`;
+    result += `  → ${p.projectedWinner} wins | Prob: ${(p.winProb * 100).toFixed(1)}% | Margin: ${p.margin.toFixed(1)} pts\n\n`;
+  });
+  
+  output.textContent = result;
 }
 
-// ----------------- Wiring -----------------
+// ==================== EVENT LISTENERS ====================
+
 window.onload = () => {
-  console.log("=== Page loaded, setting up event listeners ===");
-  
   const runBtn = document.getElementById("runBtn");
   const predictWeekBtn = document.getElementById("predictWeekBtn");
   const predictTeamBtn = document.getElementById("predictTeamBtn");
   
-  console.log("runBtn:", runBtn);
-  console.log("predictWeekBtn:", predictWeekBtn);
-  console.log("predictTeamBtn:", predictTeamBtn);
-  
-  if (!runBtn) {
-    console.error("ERROR: Could not find button with id 'runBtn'");
-  } else {
-    runBtn.addEventListener("click", () => {
-      console.log("Run button clicked!");
-      runEloCalculation();
-    });
-  }
-  
-  if (predictWeekBtn) {
-    predictWeekBtn.addEventListener("click", predictWeek);
-  }
-  
-  if (predictTeamBtn) {
-    predictTeamBtn.addEventListener("click", predictTeam);
-  }
-  
-  console.log("=== Event listeners set up complete ===");
+  if (runBtn) runBtn.addEventListener("click", runEloCalculation);
+  if (predictWeekBtn) predictWeekBtn.addEventListener("click", predictWeek);
+  if (predictTeamBtn) predictTeamBtn.addEventListener("click", predictTeam);
 };
+
+// Expose for console debugging
+window.runEloCalculation = runEloCalculation;

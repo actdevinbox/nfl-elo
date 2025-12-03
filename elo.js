@@ -77,11 +77,17 @@ function populateDropdowns(schedule, ratings) {
   const teams = Array.from(teamsSet).sort();
   teams.forEach(team => teamSelect.add(new Option(team, team)));
 
-  // Get all unique weeks
-  const weeks = Array.from(
-    new Set(schedule.map(g => Number(g.week)).filter(w => !Number.isNaN(w)))
+  // Get only weeks that have future games
+  const futureWeeks = Array.from(
+    new Set(
+      schedule
+        .filter(g => !Number.isFinite(g.winnerScore) && !Number.isFinite(g.loserScore))
+        .map(g => Number(g.week))
+        .filter(w => !Number.isNaN(w))
+    )
   ).sort((a, b) => a - b);
-  weeks.forEach(week => weekSelect.add(new Option(`Week ${week}`, week)));
+  
+  futureWeeks.forEach(week => weekSelect.add(new Option(`Week ${week}`, week)));
 }
 
 // ==================== TEAM RECORDS TABLE ====================

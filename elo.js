@@ -92,7 +92,7 @@ function populateDropdowns(schedule, ratings) {
 
 // ==================== TEAM RECORDS TABLE ====================
 
-let CURRENT_SORT = { column: 'totalWins', ascending: false };
+let CURRENT_SORT = { column: 'elo', ascending: false };
 
 function generateRecordsTable() {
   const tableContainer = document.getElementById("recordsTable");
@@ -474,3 +474,4 @@ window.onload = () => {
 
 // Expose for console debugging
 window.runEloCalculation = runEloCalculation;
+

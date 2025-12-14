@@ -193,20 +193,20 @@ Week,Winner,PtsW,H/A,Loser,PtsL
 13,Los Angeles Chargers,31,,Las Vegas Raiders,14
 13,Denver Broncos,27,@,Washington Commanders,26
 13,New England Patriots,33,,New York Giants,15
-14,Dallas Cowboys,,@,Detroit Lions,
-14,New Orleans Saints,,@,Tampa Bay Buccaneers,
-14,Miami Dolphins,,@,New York Jets,
-14,Tennessee Titans,,@,Cleveland Browns,
-14,Pittsburgh Steelers,,@,Baltimore Ravens,
-14,Washington Commanders,,@,Minnesota Vikings,
-14,Cincinnati Bengals,,@,Buffalo Bills,
-14,Indianapolis Colts,,@,Jacksonville Jaguars,
-14,Seattle Seahawks,,@,Atlanta Falcons,
-14,Denver Broncos,,@,Las Vegas Raiders,
-14,Los Angeles Rams,,@,Arizona Cardinals,
-14,Chicago Bears,,@,Green Bay Packers,
-14,Houston Texans,,@,Kansas City Chiefs,
-14,Philadelphia Eagles,,@,Los Angeles Chargers,
+14,Detroit Lions,44,,Dallas Cowboys,30
+14,Seattle Seahawks,37,@,Atlanta Falcons,9
+14,Buffalo Bills,39,,Cincinnati Bengals,34
+14,Tennessee Titans,31,@,Cleveland Browns,29
+14,Jacksonville Jaguars,36,,Indianapolis Colts,19
+14,Miami Dolphins,34,@,New York Jets,10
+14,Minnesota Vikings,31,,Washington Commanders,0
+14,New Orleans Saints,24,@,Tampa Bay Buccaneers,20
+14,Pittsburgh Steelers,27,@,Baltimore Ravens,22
+14,Denver Broncos,24,@,Las Vegas Raiders,17
+14,Green Bay Packers,28,,Chicago Bears,21
+14,Los Angeles Rams,45,@,Arizona Cardinals,17
+14,Houston Texans,20,@,Kansas City Chiefs,10
+14,Los Angeles Chargers,22,,Philadelphia Eagles,19
 15,Atlanta Falcons,,@,Tampa Bay Buccaneers,
 15,Buffalo Bills,,@,New England Patriots,
 15,New York Jets,,@,Jacksonville Jaguars,
@@ -271,3 +271,4 @@ Week,Winner,PtsW,H/A,Loser,PtsL
 18,Kansas City Chiefs,,@,Las Vegas Raiders,
 18,Miami Dolphins,,@,New England Patriots,
 18,New Orleans Saints,,@,Atlanta Falcons,
+

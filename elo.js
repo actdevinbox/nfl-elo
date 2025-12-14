@@ -92,6 +92,8 @@ function populateDropdowns(schedule, ratings) {
 
 // ==================== TEAM RECORDS TABLE ====================
 
+let CURRENT_SORT = { column: 'totalWins', ascending: false };
+
 function generateRecordsTable() {
   const tableContainer = document.getElementById("recordsTable");
   if (!tableContainer) return;
@@ -147,7 +149,7 @@ function generateRecordsTable() {
     records[awayTeam].projLosses += pHomeWin;
   });
 
-  // Sort by total projected wins
+  // Create team array
   const teamArray = Object.entries(records).map(([team, data]) => ({
     team,
     wins: data.wins,
@@ -156,18 +158,38 @@ function generateRecordsTable() {
     projLosses: data.projLosses,
     totalWins: data.wins + data.projWins,
     elo: data.elo
-  })).sort((a, b) => b.totalWins - a.totalWins);
+  }));
 
-  // Build HTML table
+  // Sort based on current sort settings
+  sortTeamArray(teamArray, CURRENT_SORT.column, CURRENT_SORT.ascending);
+
+  // Build HTML table with sortable headers
+  const getSortIndicator = (col) => {
+    if (CURRENT_SORT.column === col) {
+      return CURRENT_SORT.ascending ? ' ▲' : ' ▼';
+    }
+    return '';
+  };
+
   let html = `
     <table style="width:100%; border-collapse:collapse; font-size:14px;">
       <thead>
         <tr style="background:#f0f0f0; border-bottom:2px solid #ddd;">
-          <th style="padding:8px; text-align:left;">Team</th>
-          <th style="padding:8px; text-align:center;">Current W-L</th>
-          <th style="padding:8px; text-align:center;">Proj W-L</th>
-          <th style="padding:8px; text-align:center;">Total W-L</th>
-          <th style="padding:8px; text-align:center;">ELO</th>
+          <th onclick="sortTable('team')" style="padding:8px; text-align:left; cursor:pointer; user-select:none;">
+            Team${getSortIndicator('team')}
+          </th>
+          <th onclick="sortTable('wins')" style="padding:8px; text-align:center; cursor:pointer; user-select:none;">
+            Current W-L${getSortIndicator('wins')}
+          </th>
+          <th onclick="sortTable('projWins')" style="padding:8px; text-align:center; cursor:pointer; user-select:none;">
+            Proj W-L${getSortIndicator('projWins')}
+          </th>
+          <th onclick="sortTable('totalWins')" style="padding:8px; text-align:center; cursor:pointer; user-select:none;">
+            Total W-L${getSortIndicator('totalWins')}
+          </th>
+          <th onclick="sortTable('elo')" style="padding:8px; text-align:center; cursor:pointer; user-select:none;">
+            ELO${getSortIndicator('elo')}
+          </th>
         </tr>
       </thead>
       <tbody>
@@ -190,6 +212,63 @@ function generateRecordsTable() {
   html += '</tbody></table>';
   tableContainer.innerHTML = html;
 }
+
+function sortTeamArray(teamArray, column, ascending) {
+  teamArray.sort((a, b) => {
+    let valA, valB;
+    
+    switch(column) {
+      case 'team':
+        valA = a.team.toLowerCase();
+        valB = b.team.toLowerCase();
+        return ascending 
+          ? valA.localeCompare(valB)
+          : valB.localeCompare(valA);
+      
+      case 'wins':
+        valA = a.wins;
+        valB = b.wins;
+        break;
+      
+      case 'projWins':
+        valA = a.projWins;
+        valB = b.projWins;
+        break;
+      
+      case 'totalWins':
+        valA = a.totalWins;
+        valB = b.totalWins;
+        break;
+      
+      case 'elo':
+        valA = a.elo;
+        valB = b.elo;
+        break;
+      
+      default:
+        valA = a.totalWins;
+        valB = b.totalWins;
+    }
+    
+    return ascending ? valA - valB : valB - valA;
+  });
+}
+
+function sortTable(column) {
+  // Toggle sort direction if clicking the same column
+  if (CURRENT_SORT.column === column) {
+    CURRENT_SORT.ascending = !CURRENT_SORT.ascending;
+  } else {
+    // Default to descending for numeric columns, ascending for team name
+    CURRENT_SORT.column = column;
+    CURRENT_SORT.ascending = column === 'team';
+  }
+  
+  generateRecordsTable();
+}
+
+// Expose sortTable for inline onclick handlers
+window.sortTable = sortTable;
 
 // ==================== MAIN ELO CALCULATION ====================
 

@@ -223,22 +223,22 @@ Week,Winner,PtsW,H/A,Loser,PtsL
 15,San Francisco 49ers,37,,Tennessee Titans,24
 15,Minnesota Vikings,34,@,Dallas Cowboys,26
 15,Pittsburgh Steelers,28,,Miami Dolphins,15
-16,Los Angeles Rams,,@,Seattle Seahawks,
-16,Philadelphia Eagles,,@,Washington Commanders,
-16,Green Bay Packers,,@,Chicago Bears,
-16,Buffalo Bills,,@,Cleveland Browns,
-16,New York Jets,,@,New Orleans Saints,
-16,Kansas City Chiefs,,@,Tennessee Titans,
-16,Los Angeles Chargers,,@,Dallas Cowboys,
-16,New England Patriots,,@,Baltimore Ravens,
-16,Minnesota Vikings,,@,New York Giants,
-16,Tampa Bay Buccaneers,,@,Carolina Panthers,
-16,Atlanta Falcons,,@,Arizona Cardinals,
-16,Jacksonville Jaguars,,@,Denver Broncos,
-16,Las Vegas Raiders,,@,Houston Texans,
-16,Pittsburgh Steelers,,@,Detroit Lions,
-16,Cincinnati Bengals,,@,Miami Dolphins,
-16,San Francisco 49ers,,@,Indianapolis Colts,
+16,Seattle Seahawks,38,,Los Angeles Rams,37
+16,Philadelphia Eagles,29,@,Washington Commanders,18
+16,Chicago Bears,22,,Green Bay Packers,16
+16,Buffalo Bills,23,@,Cleveland Browns,20
+16,Carolina Panthers,23,,Tampa Bay Buccaneers,20
+16,Cincinnati Bengals,45,@,Miami Dolphins,21
+16,Los Angeles Chargers,34,@,Dallas Cowboys,17
+16,Tennessee Titans,26,,Kansas City Chiefs,9
+16,Minnesota Vikings,16,@,New York Giants,13
+16,New Orleans Saints,29,,New York Jets,6
+16,Atlanta Falcons,26,@,Arizona Cardinals,19
+16,Jacksonville Jaguars,34,@,Denver Broncos,20
+16,Pittsburgh Steelers,29,@,Detroit Lions,24
+16,Houston Texans,23,,Las Vegas Raiders,21
+16,New England Patriots,28,@,Baltimore Ravens,24
+16,San Francisco 49ers,48,@,Indianapolis Colts,27
 17,Dallas Cowboys,,@,Washington Commanders,
 17,Detroit Lions,,@,Minnesota Vikings,
 17,Denver Broncos,,@,Kansas City Chiefs,
@@ -271,5 +271,6 @@ Week,Winner,PtsW,H/A,Loser,PtsL
 18,Kansas City Chiefs,,@,Las Vegas Raiders,
 18,Miami Dolphins,,@,New England Patriots,
 18,New Orleans Saints,,@,Atlanta Falcons,
+
 
 
